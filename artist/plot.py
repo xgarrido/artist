@@ -18,7 +18,7 @@ import subprocess
 import os
 import tempfile
 import shutil
-from itertools import izip_longest
+from itertools import zip_longest
 
 import jinja2
 import numpy as np
@@ -236,7 +236,7 @@ class SubPlot(object):
 
     def _create_plot_series_object(self, x, y, xerr=[], yerr=[],
                                    options=None):
-        return {'options': options, 'data': list(izip_longest(x, y, xerr,
+        return {'options': options, 'data': list(zip_longest(x, y, xerr,
                                                               yerr)),
                 'show_xerr': True if len(xerr) else False,
                 'show_yerr': True if len(yerr) else False}
@@ -360,7 +360,7 @@ class SubPlot(object):
                 First plot a data series, before using this function""")
 
         data = series['data']
-        series_x, series_y = zip(*data)[:2]
+        series_x, series_y = list(zip(*data))[:2]
 
         if x is not None:
             y = np.interp(x, series_x, series_y)
