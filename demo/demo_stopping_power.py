@@ -4,16 +4,16 @@ import pylab as plt
 
 from artist import GraphArtist
 
-# For TeX rendering
-plt.rcParams['font.serif'] = 'Computer Modern'
-plt.rcParams['font.sans-serif'] = 'Computer Modern'
-plt.rcParams['font.family'] = 'sans-serif'
-plt.rcParams['figure.figsize'] = [4 * x for x in (1, 2. / 3)]
-plt.rcParams['figure.subplot.left'] = 0.175
-plt.rcParams['figure.subplot.bottom'] = 0.175
-plt.rcParams['font.size'] = 10
-plt.rcParams['legend.fontsize'] = 'small'
-plt.rcParams['text.usetex'] = True
+# # For TeX rendering
+# plt.rcParams['font.serif'] = 'Computer Modern'
+# plt.rcParams['font.sans-serif'] = 'Computer Modern'
+# plt.rcParams['font.family'] = 'sans-serif'
+# plt.rcParams['figure.figsize'] = [4 * x for x in (1, 2. / 3)]
+# plt.rcParams['figure.subplot.left'] = 0.175
+# plt.rcParams['figure.subplot.bottom'] = 0.175
+# plt.rcParams['font.size'] = 10
+# plt.rcParams['legend.fontsize'] = 'small'
+# plt.rcParams['text.usetex'] = True
 
 
 def main():
