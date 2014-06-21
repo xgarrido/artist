@@ -77,7 +77,12 @@
     {%- for x, y, xerr, yerr in series.data %}
         ({{ x }}, {{ y }})
     {%- endfor %}
-    };
+    }
+    {%- if 'const plot' in series.options %}
+    \closedcycle;
+    {%- else %}
+    ;
+    {%- endif %}
 {% endfor %}
 
 {% for line in plot.horizontal_lines %}
