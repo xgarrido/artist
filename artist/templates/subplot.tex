@@ -75,7 +75,11 @@
     % Draw series plot
     \addplot[{{ series.options }}] coordinates {
     {%- for x, y, xerr, yerr in series.data %}
-        ({{ x }}, {{ y }})
+        {%- if y == 0 and 'const plot' in series.options %}
+           ({{ x }}, 1e-13)
+        {%- else %}
+           ({{ x }}, {{ y }})
+        {%- endif %}
     {%- endfor %}
     }
     {%- if 'fill' in series.options %}

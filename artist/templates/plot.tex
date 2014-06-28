@@ -7,6 +7,8 @@
 % \sisetup{text-sf=\sansmath}
 % \usepackage{relsize}
 %
+\pgfsetplotmarksize{1.25pt}
+
 \pgfkeysifdefined{/artist/width}
     {\pgfkeysgetvalue{/artist/width}{\defaultwidth}}
     {\def\defaultwidth{ {{ width }} }}
@@ -25,6 +27,9 @@
         every pin edge/.style={<-, >=stealth', shorten <=2pt},
         pin distance=2.5ex,
     ]
+
+    {% include 'color.tex' %}
+
     \begin{axis}[
             xmode={{ xmode }},
             ymode={{ ymode }},
