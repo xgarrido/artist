@@ -195,6 +195,7 @@ class SubPlot(object):
                        'ymin': None, 'ymax': None}
         self.ticks = {'x': [], 'y': []}
         self.axis_equal = False
+        self.axis_options = None
 
     def plot(self, x, y, xerr=[], yerr=[], mark='o',
              linestyle='solid', use_steps=False, markstyle=None):
@@ -533,6 +534,11 @@ class SubPlot(object):
 
         self.axis_equal = True
 
+    def set_axis_options(self, text):
+        """Set additionnal options as plain text."""
+
+        self.axis_options = text
+
     def _parse_plot_options(self, mark=None, linestyle=None,
                             use_steps=False, markstyle=None):
         options = []
@@ -635,6 +641,7 @@ class Plot(SubPlot, BasePlotContainer):
             limits=self.limits,
             ticks=self.ticks,
             axis_equal=self.axis_equal,
+            axis_options=self.axis_options,
             plot=self,
             plot_template=self.template)
         return response

@@ -53,10 +53,13 @@
             ytick={ {{ ticks.y | join(', ') }} },
             %
             tick align=outside,
-            max space between ticks=40,
+            max space between ticks=25,
             every tick/.style={},
             axis on top,
             log origin=infty,
+            {%- if axis_options %}
+            {{ axis_options }}
+            {%- endif %}
             ]
 
         {% include 'subplot.tex' %}
