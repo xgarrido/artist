@@ -112,13 +112,13 @@
         at (axis cs:{{ pin.x }}, {{ pin.y }}) {};
 {% endfor %}
 
-{% if plot.label %}
-    \node[{{ plot.label.style }},
-    {%- if plot.label.node_location != 'center' %}
-          {{ plot.label.node_location }}=2pt
+{% for label in plot.label_list %}
+    \node[{{ label.style }},
+    {%- if label.node_location != 'center' %}
+          {{ label.node_location }}=2pt
     {%- endif %}
         ]
-        at (rel axis cs:{{ plot.label.x }},
-            {{ plot.label.y }})
-        { {{ plot.label.text }} };
-{% endif %}
+        at (rel axis cs:{{ label.x }},
+            {{ label.y }})
+        { {{ label.text }} };
+{% endfor %}
