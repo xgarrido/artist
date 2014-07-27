@@ -17,7 +17,7 @@ import os
 import subprocess
 import shutil
 
-from plot import BasePlotContainer, SubPlot
+from artist.plot import BasePlotContainer, SubPlot
 
 
 class MultiPlot(BasePlotContainer):

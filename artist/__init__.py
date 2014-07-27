@@ -57,9 +57,9 @@ The following modules are included:
     based on the name of the function creating the plot.
 
 """
-from plot import Plot
-from multi_plot import MultiPlot
-from recursive_smooth import smooth
+from artist.plot import Plot
+from artist.multi_plot import MultiPlot
+from artist.recursive_smooth import smooth
 
 # Backwards compatibility
-from plot import Plot as GraphArtist
+from artist.plot import Plot as GraphArtist
