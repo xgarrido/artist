@@ -190,7 +190,7 @@ class SubPlot(object):
         self.title = None
         self.xlabel = None
         self.ylabel = None
-        self.label = None
+        self.label_list = []
         self.limits = {'xmin': None, 'xmax': None,
                        'ymin': None, 'ymax': None}
         self.ticks = {'x': [], 'y': []}
@@ -328,9 +328,9 @@ class SubPlot(object):
         """
         if location in RELATIVE_NODE_LOCATIONS:
             label = RELATIVE_NODE_LOCATIONS[location].copy()
-            label['text'] = text
-            label['style'] = style
-            self.label = label
+            self.label_list.append({'node_location': label['node_location'],
+                                    'x': label['x'], 'y': label['y'],
+                                    'text': text, 'style': style})
         else:
             raise RuntimeError("Unknown label location: %s" % location)
 
