@@ -7,6 +7,7 @@
 % \sisetup{text-sf=\sansmath}
 % \usepackage{relsize}
 %
+
 \pgfkeysifdefined{/artist/width}
     {\pgfkeysgetvalue{/artist/width}{\defaultwidth}}
     {\def\defaultwidth{ {{ width }} }}
@@ -126,6 +127,12 @@
                     {%- endif %}
                     {%- if subplot.limits.ymax is not none %}
                         ymax={ {{ subplot.limits.ymax }} },
+                    {%- endif %}
+                    {%- if plot.height %}
+                        height= { {{ plot.height }}},
+                    {%- endif %}
+                    {%- if plot.width %}
+                        width= { {{ plot.width }}},
                     {%- endif %}
                 {%- endif %}
                 ]
