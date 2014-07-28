@@ -311,6 +311,22 @@ class SubPlot(object):
         self.set_xlimits(min(x_edges), max(x_edges))
         self.set_ylimits(min(y_edges), max(y_edges))
 
+    def set_width(self, width):
+        """Set the width of the plot.
+
+        :param width: width of the plot
+
+        """
+        self.width = width
+
+    def set_height(self, height):
+        """Set the height of the plot.
+
+        :param height: height of the plot
+
+        """
+        self.height = height
+
     def set_title(self, text):
         """Set a title text."""
 

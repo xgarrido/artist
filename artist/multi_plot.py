@@ -78,6 +78,26 @@ class MultiPlot(BasePlotContainer):
         for row, column in row_column_list:
             self.set_empty(row, column)
 
+    def set_width(self, row, column, width):
+        """Set a width for the subplot.
+
+        :param row, column: specify the subplot.
+        :param width: the width.
+
+        """
+        subplot = self.get_subplot_at(row, column)
+        subplot.set_width(width)
+
+    def set_height(self, row, column, height):
+        """Set a height for the subplot.
+
+        :param row, column: specify the subplot.
+        :param height: the height.
+
+        """
+        subplot = self.get_subplot_at(row, column)
+        subplot.set_height(height)
+
     def set_title(self, row, column, text):
         """Set a title text.
 
