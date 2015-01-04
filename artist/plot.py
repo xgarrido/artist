@@ -12,6 +12,9 @@ Contents
 :class:`Plot`
     Create a plot containing a single subplot.
 
+:class:`PolarPlot`
+    Create a plot containing a single polar subplot.
+
 """
 
 import subprocess
@@ -20,6 +23,7 @@ import tempfile
 import shutil
 from itertools import zip_longest
 
+from PIL import Image
 import jinja2
 import numpy as np
 from math import log10
@@ -71,6 +75,17 @@ class BasePlotContainer(object):
         response = template.render()
         return response
 
+    def save_assets(self, dest_path):
+        """Save plot assets alongside dest_path.
+
+        Some plots may have assets, like bitmap files, which need to be
+        saved alongside the rendered plot file.
+
+        :param dest_path: path of the main output file.
+
+        """
+        pass
+
     def render_as_document(self):
         """Render the plot as a stand-alone document.
 
@@ -88,6 +103,7 @@ class BasePlotContainer(object):
         :param dest_path: path of the file.
 
         """
+        self.save_assets(dest_path)
         dest_path = self._add_extension('tex', dest_path)
         with open(dest_path, 'w') as f:
             f.write(self.render())
@@ -98,6 +114,7 @@ class BasePlotContainer(object):
         :param dest_path: path of the file.
 
         """
+        self.save_assets(dest_path)
         dest_path = self._add_extension('tex', dest_path)
         with open(dest_path, 'w') as f:
             f.write(self.render_as_document())
@@ -113,6 +130,7 @@ class BasePlotContainer(object):
         dest_path = self._add_extension('pdf', dest_path)
         build_dir = tempfile.mkdtemp()
         build_path = os.path.join(build_dir, 'document.tex')
+        self.save_assets(build_path)
         with open(build_path, 'w') as f:
             f.write(self.render_as_document())
         pdf_path = self._build_document(build_path)
@@ -122,16 +140,21 @@ class BasePlotContainer(object):
 
     def _build_document(self, path):
         dir_path = os.path.dirname(path)
+
+        cwd = os.getcwd()
+        os.chdir(dir_path)
+
         try:
-            subprocess.check_output(['pdflatex', '-halt-on-error',
-                                     '-output-directory', dir_path, path],
+            subprocess.check_output(['pdflatex', '-halt-on-error', path],
                                     stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as exc:
             output_lines = exc.output.split('\n')
-            error_lines = [line for line in output_lines if
-                           line and line[0] == '!']
+            error_lines = [line for line in output_lines
+                           if line and line[0] == '!']
             errors = '\n'.join(error_lines)
             raise RuntimeError("LaTeX compilation failed:\n" + errors)
+
+        os.chdir(cwd)
 
         pdf_path = path.replace('.tex', '.pdf')
         return pdf_path
@@ -147,7 +170,7 @@ class BasePlotContainer(object):
         os.rename(output_path, path)
 
     def _add_extension(self, extension, path):
-        if not '.' in path:
+        if '.' not in path:
             return path + '.' + extension
         else:
             return path
@@ -184,18 +207,34 @@ class SubPlot(object):
         self.shaded_regions_list = []
         self.plot_series_list = []
         self.histogram2d_list = []
+        self.bitmap_list = []
         self.pin_list = []
         self.horizontal_lines = []
         self.vertical_lines = []
+        self.axis_background = None
         self.title = None
         self.xlabel = None
         self.ylabel = None
         self.label_list = []
         self.limits = {'xmin': None, 'xmax': None,
                        'ymin': None, 'ymax': None}
-        self.ticks = {'x': [], 'y': []}
+        self.ticks = {'x': [], 'y': [],
+                      'xlabels': '', 'ylabels': '',
+                      'xsuffix': '', 'ysuffix': ''}
         self.axis_equal = False
         self.axis_options = None
+
+    def save_assets(self, dest_path, suffix=''):
+        """Save plot assets alongside dest_path.
+
+        Some plots may have assets, like bitmap files, which need to be
+        saved alongside the rendered plot file.
+
+        :param dest_path: path of the main output file.
+        :param suffix: optional suffix to add to asset names.
+
+        """
+        self._write_bitmaps(dest_path, suffix)
 
     def plot(self, x, y, xerr=[], yerr=[], mark='o',
              linestyle='solid', use_steps=False, markstyle=None):
@@ -220,25 +259,26 @@ class SubPlot(object):
         xerr and yerr may be empty lists.
 
         """
-        self._clear_plot_mark_background(x, y, mark)
+        # clear the background of the marks
+        self._clear_plot_mark_background(x, y, mark, markstyle)
+        # draw the plot series over the background
         options = self._parse_plot_options(mark, linestyle, use_steps,
                                            markstyle)
         plot_series = self._create_plot_series_object(x, y, xerr, yerr,
                                                       options)
         self.plot_series_list.append(plot_series)
 
-    def _clear_plot_mark_background(self, x, y, mark):
-        options = self._create_mark_background_options(mark)
+    def _clear_plot_mark_background(self, x, y, mark, markstyle):
+        options = self._create_mark_background_options(mark, markstyle)
         if options:
             plot_series = self._create_plot_series_object(x, y,
                                                           options=options)
             # make sure all background clear operations are performed first
             self.plot_series_list.insert(0, plot_series)
 
-    def _create_plot_series_object(self, x, y, xerr=[], yerr=[],
-                                   options=None):
-        return {'options': options, 'data': list(zip_longest(x, y, xerr,
-                                                              yerr)),
+    def _create_plot_series_object(self, x, y, xerr=[], yerr=[], options=None):
+        return {'options': options,
+                'data': list(zip_longest(x, y, xerr, yerr)),
                 'show_xerr': True if len(xerr) else False,
                 'show_yerr': True if len(yerr) else False}
 
@@ -270,8 +310,8 @@ class SubPlot(object):
         y = list(counts) + [counts[-1]]
         self.plot(x, y, mark=None, linestyle=linestyle, use_steps=True)
 
-    def histogram2d(self, counts, x_edges, y_edges, type='bw',
-                    style=None):
+    def histogram2d(self, counts, x_edges, y_edges, type='bw', style=None,
+                    bitmap=False):
         """Plot a two-dimensional histogram.
 
         The user needs to supply the histogram.  This method only plots
@@ -288,6 +328,10 @@ class SubPlot(object):
         :param style: optional TikZ styles to apply (e.g. 'red').  Note
             that many color styles are overridden by the 'bw' and
             'reverse_bw' types.
+        :param bitmap: Export the histogram as an image for better
+            performance. This does expect all bins along an axis to have
+            equal width. Can only be combined with type 'bw' and
+            'reverse_bw'.
 
         """
         if counts.shape != (len(x_edges) - 1, len(y_edges) - 1):
@@ -296,20 +340,61 @@ class SubPlot(object):
 
         if type not in ['bw', 'reverse_bw', 'area']:
             raise RuntimeError("Histogram type %s not supported" % type)
+        if type == 'area' and bitmap:
+            raise RuntimeError("Histogram type %s not supported for bitmap "
+                               "output" % type)
 
-        x_centers = (x_edges[:-1] + x_edges[1:]) / 2
-        y_centers = (y_edges[:-1] + y_edges[1:]) / 2
+        if bitmap:
+            normed_counts = self._normalize_histogram2d(counts, type)
+            img = Image.fromarray(np.flipud(normed_counts.T))
+            self.bitmap_list.append({'image': img,
+                                     'xmin': min(x_edges),
+                                     'xmax': max(x_edges),
+                                     'ymin': min(y_edges),
+                                     'ymax': max(y_edges)})
+        else:
+            x_centers = (x_edges[:-1] + x_edges[1:]) / 2
+            y_centers = (y_edges[:-1] + y_edges[1:]) / 2
 
-        self.histogram2d_list.append({'x_edges': x_edges,
-                                      'y_edges': y_edges,
-                                      'x_centers': x_centers,
-                                      'y_centers': y_centers,
-                                      'counts': counts,
-                                      'max': counts.max(),
-                                      'type': type,
-                                      'style': style})
-        self.set_xlimits(min(x_edges), max(x_edges))
-        self.set_ylimits(min(y_edges), max(y_edges))
+            self.histogram2d_list.append({'x_edges': x_edges,
+                                          'y_edges': y_edges,
+                                          'x_centers': x_centers,
+                                          'y_centers': y_centers,
+                                          'counts': counts,
+                                          'max': counts.max(),
+                                          'type': type,
+                                          'style': style})
+        # Set limits unless lower/higher limits are already set.
+        xmin = min(x for x in (min(x_edges), self.limits['xmin'])
+                   if x is not None)
+        ymin = min(y for y in (min(y_edges), self.limits['ymin'])
+                   if y is not None)
+        self.set_xlimits(xmin, max(max(x_edges), self.limits['xmax']))
+        self.set_ylimits(ymin, max(max(y_edges), self.limits['ymax']))
+
+    def scatter(self, x, y, mark='o', markstyle=None):
+        """Plot a series of points.
+
+        Plot a series of points (marks) that are not connected by a
+        line. Shortcut for plot with linestyle=None.
+
+        :param x: array containing x-values.
+        :param y: array containing y-values.
+        :param mark: the symbol used to mark the data points. May be
+            any plot mark accepted by TikZ (e.g. *, x, +, o, square,
+            triangle).
+        :param markstyle: the style of the plot marks (e.g. 'mark
+            size=.75pt')
+
+        Example::
+
+            >>> plot = artist.Plot()
+            >>> x = np.random.normal(size=20)
+            >>> y = np.random.normal(size=20)
+            >>> plot.scatter(x, y, mark='*')
+
+        """
+        self.plot(x, y, mark=mark, linestyle=None, markstyle=markstyle)
 
     def set_width(self, width):
         """Set the width of the plot.
@@ -373,8 +458,8 @@ class SubPlot(object):
         try:
             series = self.plot_series_list[-1]
         except IndexError:
-            raise RuntimeError("""
-                First plot a data series, before using this function""")
+            raise RuntimeError(
+                "First plot a data series, before using this function")
 
         data = series['data']
         series_x, series_y = list(zip(*data))[:2]
@@ -465,6 +550,14 @@ class SubPlot(object):
         self.vertical_lines.append({'value': xvalue,
                                     'options': linestyle})
 
+    def set_axis_background(self, color='white'):
+        """Set a fill color for the axis background.
+
+        :param color: TikZ style to color the axis background.
+
+        """
+        self.axis_background = 'fill=%s' % color
+
     def set_xlabel(self, text):
         """Set a label for the x-axis.
 
@@ -513,6 +606,14 @@ class SubPlot(object):
         """
         self.ticks['x'] = ticks
 
+    def set_yticks(self, ticks):
+        """Set ticks for the y-axis.
+
+        :param ticks: locations for the ticks along the axis.
+
+        """
+        self.ticks['y'] = ticks
+
     def set_logxticks(self, logticks):
         """Set ticks for the logarithmic x-axis.
 
@@ -525,14 +626,6 @@ class SubPlot(object):
         """
         self.ticks['x'] = ['1e%d' % u for u in logticks]
 
-    def set_yticks(self, ticks):
-        """Set ticks for the y-axis.
-
-        :param ticks: locations for the ticks along the axis.
-
-        """
-        self.ticks['y'] = ticks
-
     def set_logyticks(self, logticks):
         """Set ticks for the logarithmic y-axis.
 
@@ -544,6 +637,58 @@ class SubPlot(object):
 
         """
         self.ticks['y'] = ['1e%d' % u for u in logticks]
+
+    def set_xtick_labels(self, labels):
+        """Set tick labels for the x-axis.
+
+        Also set the x-ticks positions to ensure the labels end up on
+        the correct place.
+
+        :param labels: list of labels for the ticks along the axis.
+
+        """
+        self.ticks['xlabels'] = labels
+
+    def set_ytick_labels(self, labels):
+        """Set tick labels for the y-axis.
+
+        Also set the y-ticks positions to ensure the labels end up on
+        the correct place.
+
+        :param labels: list of labels for the ticks along the axis.
+
+        """
+        self.ticks['ylabels'] = labels
+
+    def set_xtick_suffix(self, suffix):
+        """Set the suffix for the ticks of the x-axis.
+
+        :param suffix: string added after each tick. If the value is
+                       `degree` or `precent` the corresponding symbols
+                       will be added.
+
+        """
+        if suffix == 'degree':
+            suffix = '^\circ'
+        elif suffix == 'percent':
+            suffix = '\%'
+
+        self.ticks['xsuffix'] = suffix
+
+    def set_ytick_suffix(self, suffix):
+        """Set ticks for the y-axis.
+
+        :param suffix: string added after each tick. If the value is
+                       `degree` or `precent` the corresponding symbols
+                       will be added.
+
+        """
+        if suffix == 'degree':
+            suffix = '^\circ'
+        elif suffix == 'percent':
+            suffix = '\%'
+
+        self.ticks['ysuffix'] = suffix
 
     def set_axis_equal(self):
         """Scale the axes so the unit vectors have equal length."""
@@ -577,13 +722,15 @@ class SubPlot(object):
         options_string = ','.join(options)
         return options_string
 
-    def _create_mark_background_options(self, mark=None):
+    def _create_mark_background_options(self, mark=None, markstyle=None):
         options = []
         if mark is not None:
             if mark in ['o', 'square', 'triangle', 'diamond', 'pentagon']:
                 if mark == 'o':
                     mark = ''
                 options.append('mark=%s*,mark options=white,only marks' % mark)
+                if markstyle:
+                    options.append(',%s' % markstyle)
         options_string = ','.join(options)
         return options_string
 
@@ -606,6 +753,49 @@ class SubPlot(object):
             ys = np.interp(xs, x, y)
             return xs, ys
 
+    def _normalize_histogram2d(self, counts, type):
+        """Normalize the values of the counts for a 2D histogram
+
+        This normalizes the values of a numpy array to the range 0-255.
+
+        :param counts: a NumPy array which is to be rescaled.
+        :param type: either 'bw' or 'reverse_bw'.
+
+        """
+        counts = 255 * (counts - counts.min()) / (counts.max() - counts.min())
+
+        if type == 'reverse_bw':
+            counts = 255 - counts
+
+        return counts.astype(np.uint8)
+
+    def _write_bitmaps(self, path, suffix=''):
+        """Write bitmap file assets.
+
+        :param path: path of the plot file.
+        :param suffix: optional suffix to add to asset names.
+
+        The path parameter is used for the dirname, and the filename.
+        So if :meth:`save` is called with '/foo/myplot.tex', you can call
+        this method with that same path. The assets will then be saved in
+        the /foo directory, and have a name like 'myplot_0.png'.
+
+        """
+        dir, prefix = os.path.split(path)
+        if '.' in prefix:
+            prefix = prefix.split('.')[0]
+        if prefix == '':
+            prefix = 'figure'
+        for i, bitmap in enumerate(self.bitmap_list):
+            name = '%s%s_%d.png' % (prefix, suffix, i)
+            bitmap['name'] = name
+            img = bitmap['image']
+            # Make the bitmap at least 1000x1000 pixels
+            size0 = int(np.ceil(1000. / img.size[0]) * img.size[0])
+            size1 = int(np.ceil(1000. / img.size[1]) * img.size[1])
+            large_img = img.resize((size0, size1))
+            large_img.save(os.path.join(dir, name))
+
 
 class Plot(SubPlot, BasePlotContainer):
 
@@ -622,8 +812,7 @@ class Plot(SubPlot, BasePlotContainer):
         environment = jinja2.Environment(loader=jinja2.PackageLoader(
             'artist', 'templates'), finalize=self._convert_none)
         self.template = environment.get_template('plot.tex')
-        self.document_template = environment.get_template(
-            'document.tex')
+        self.document_template = environment.get_template('document.tex')
 
         self.width = width
         self.height = height
@@ -647,6 +836,7 @@ class Plot(SubPlot, BasePlotContainer):
             template = self.template
 
         response = template.render(
+            axis_background=self.axis_background,
             xmode=self.xmode,
             ymode=self.ymode,
             title=self.title,
@@ -661,3 +851,96 @@ class Plot(SubPlot, BasePlotContainer):
             plot=self,
             plot_template=self.template)
         return response
+
+
+class PolarPlot(Plot):
+
+    """Create a plot containing a single polar subplot.
+
+    Same as the Plot but uses polar axes. The x values are the phi
+    coordinates in degrees (or radians). The y values are the r
+    coordinates in arbitrary units.
+
+    :param use_radians: If this keyword is set to True the units for x
+        values and x axis labels are radians.
+
+    """
+
+    def __init__(self, *args, **kwargs):
+        self.use_radians = kwargs.pop('use_radians', False)
+        super(PolarPlot, self).__init__(*args, **kwargs)
+        environment = jinja2.Environment(loader=jinja2.PackageLoader(
+            'artist', 'templates'), finalize=self._convert_none)
+        self.template = environment.get_template('polar_plot.tex')
+
+        if not self.use_radians:
+            self.set_xtick_suffix('degree')
+        else:
+            self.set_xticks([0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300,
+                             330])
+            self.set_xtick_labels([r'$0$', r'$\frac{1}{6}\pi$',
+                                   r'$\frac{2}{6}\pi$', r'$\frac{1}{2}\pi$',
+                                   r'$\frac{4}{6}\pi$', r'$\frac{5}{6}\pi$',
+                                   r'$\pm\pi$', r'$-\frac{5}{6}\pi$',
+                                   r'$-\frac{4}{6}\pi$', r'$-\frac{1}{2}\pi$',
+                                   r'$-\frac{2}{6}\pi$', r'$-\frac{1}{6}\pi$'])
+
+    def plot(self, x, y, **kwargs):
+        if self.use_radians:
+            x = np.degrees(x)
+        super(PolarPlot, self).plot(x, y, **kwargs)
+
+    def histogram(self, counts, bin_edges, linestyle='solid'):
+        """Plot a polar histogram.
+
+        The user needs to supply the histogram.  This method only plots
+        the results.  You can use NumPy's histogram function.
+
+        :param counts: array containing the count values.
+        :param bin_edges: array containing the bin edges.
+        :param linestyle: the line style used to connect the data points.
+            May be None, or any line style accepted by TikZ (e.g. solid,
+            dashed, dotted, thick, or even combinations like
+            "red,thick,dashed").
+
+        Example::
+
+            >>> plot = artist.PolarPlot()
+            >>> x = np.random.uniform(0, 360, size=1000)
+            >>> n, bins = np.histogram(x, bins=np.linspace(0, 360, 37))
+            >>> plot.histogram(n, bins)
+
+        """
+        if len(bin_edges) - 1 != len(counts):
+            raise RuntimeError(
+                "The length of bin_edges should be length of counts + 1")
+
+        x = []
+        y = []
+
+        if self.use_radians:
+            circle = 2 * np.pi
+        else:
+            circle = 360.
+
+        step = circle / 1800.
+
+        for i in range(len(bin_edges) - 1):
+            for bin_edge in np.arange(bin_edges[i], bin_edges[i + 1],
+                                      step=step):
+                x.append(bin_edge)
+                y.append(counts[i])
+            x.append(bin_edges[i + 1])
+            y.append(counts[i])
+
+        # If last edge is same as first bin edge, connect the ends.
+        if bin_edges[-1] % circle == bin_edges[0] % circle:
+            x.append(bin_edges[0])
+            y.append(counts[0])
+
+        self.plot(x, y, mark=None, linestyle=linestyle)
+
+    def set_xlimits(self, min=None, max=None):
+        """Do not allow setting x limits, it messes with the axes."""
+
+        pass

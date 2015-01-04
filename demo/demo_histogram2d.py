@@ -1,26 +1,37 @@
 import numpy as np
 
-from artist import GraphArtist
+from artist import Plot, MultiPlot
 
 
 def main():
 
-    x_edges = np.arange(5)
-    y_edges = np.arange(5)
-    H = np.random.random_sample((len(x_edges)-1, len(y_edges)-1))
+    x = np.random.normal(0, 50, 50000)
+    y = np.random.normal(0, 15, 50000)
 
-    # make graph
-    graph = GraphArtist()
+    ranges = ([(-100, 0), (-50, 0)],
+              [(0, 100), (-50, 0)],
+              [(-100, 0), (0, 50)],
+              [(0, 100), (0, 50)])
+    types = ('reverse_bw', 'bw', 'reverse_bw', 'bw')
+    bitmaps = (True, True, False, False)
 
-    # graph histogram
-    graph.histogram2d(H, x_edges, y_edges)
+    plot = Plot()
+    for r, t, b in zip(ranges, types, bitmaps):
+        n, xbins, ybins = np.histogram2d(x, y, bins=15, range=r)
+        plot.histogram2d(n, xbins, ybins, type=t, bitmap=b)
 
-    # set labels and limits
-    graph.set_xlabel("value")
-    graph.set_ylabel("count")
+    plot.save('histogram2d')
 
-    # save graph to file
-    graph.save('histogram-2d')
+    plot = MultiPlot(2, 2, width=r'.5\linewidth')
+    subplot_idxs = [(1, 0), (1, 1), (0, 0), (0, 1)]
+    for idx, r, t, b in zip(subplot_idxs, ranges, types, bitmaps):
+        p = plot.get_subplot_at(*idx)
+        n, xbins, ybins = np.histogram2d(x, y, bins=15, range=r)
+        p.histogram2d(n, xbins, ybins, type=t, bitmap=b)
+    plot.show_yticklabels_for_all([(1, 0), (0, 1)])
+    plot.show_xticklabels_for_all([(1, 0), (0, 1)])
+
+    plot.save('multi_histogram2d')
 
 if __name__ == '__main__':
     main()
