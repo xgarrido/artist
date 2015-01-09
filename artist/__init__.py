@@ -58,6 +58,7 @@ The following modules are included:
 
 """
 from artist.plot import Plot
+from artist.plot import PolarPlot
 from artist.multi_plot import MultiPlot
 from artist.recursive_smooth import smooth
 
